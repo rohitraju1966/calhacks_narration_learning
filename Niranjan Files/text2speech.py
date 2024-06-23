@@ -35,7 +35,7 @@ def text_to_speech(transcript):
             response = requests.get(url)
             if response.status_code == 200:
                 # Specify the file path where you want to save the audio file
-                file_path = 'downloaded_audio.mp3'  # You can change the filename if needed
+                file_path = r'public\audio.mp3'  # You can change the filename if needed
                 
                 with open(file_path, 'wb') as f:
                     f.write(response.content)
