@@ -10,7 +10,6 @@ import os
 from dotenv import load_dotenv
 load_dotenv()
 #os.getenv("OPENAI_API_KEY")
-#os.environ["OPENAI_API_KEY"] = "sk-proj-oxfHsU3PUGAIFxcAv4sJT3BlbkFJsPNJ7Xc60re6YQ2OdtdV"
 
 movie="Harry Potter"
 chapter= None
