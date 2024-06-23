@@ -5,34 +5,40 @@ from langchain_openai import ChatOpenAI
 from langchain.prompts import ChatPromptTemplate
 import json
 from text2speech import *
+from core_knowledge_llm_RAG import *
 # from langchain_anthropic import ChatAnthropic
 import os 
 from dotenv import load_dotenv
+import pandas as pd
 load_dotenv()
 #os.getenv("OPENAI_API_KEY")
+#os.environ["OPENAI_API_KEY"] = ""
+
 
 movie="Harry Potter"
 chapter= None
+chapter_pdf_mapping= {"Newton's Laws of Motion":r"C:\Users\saaij\OneDrive - UCB-O365\01. Study\04. Hackathon and Competitions\05. UC Berkely Hackathon 06-22-2024\02. Hacking\Final_Repo_2\calhacks_narration_learning\Niranjan Files\pdfs\Newtons_laws_NASA.pdf" }
 initial_context= None
 subject= "Physics"
 chat_history= None
+vectorstore= None 
+model= None
 
 movie_mapping= {"Harry Potter": "Dumbledore"}
 
 # Defining the knowledge_llm_func's input schema
 class knowledge_llm_func_schema(BaseModel):
     user_query: str= Field(...,description= "Query asked by the user")
-    subject: str= Field(...,description="Subject name")
-    chapter: str= Field(...,description="Chapter name")
 
 
 @tool(args_schema=knowledge_llm_func_schema)
-def knowledge_llm_calling(user_query: str, subject= subject, chapter= chapter) -> str:
-# def knowledge_llm_calling(user_query: str, subject_chapter_tuple: list) -> str:
+def knowledge_llm_calling(user_query: str) -> str:
     """A function that can only answer questions on Physics subject on the Newton's Law of Motion chapter"""
-    return "TEST"
+    global subject, chapter, movie, initial_context, chat_history, vectorstore,chapter_pdf_mapping, model
+    context= RAG_inference(question= user_query, vectorstore= vectorstore, model= model)
+    return context
 
-# For reply with 
+# Define the initial story model 
 story_mode= ChatOpenAI(#model= ,
     openai_api_key= os.getenv("OPENAI_API_KEY"), 
     temperature=0, 
@@ -40,11 +46,14 @@ story_mode= ChatOpenAI(#model= ,
     )
 
 def initial_user_input(st_name, subject_user, chapter_user, theme):
-    global subject, chapter, movie, initial_context, chat_history
+    global subject, chapter, movie, initial_context, chat_history, vectorstore,chapter_pdf_mapping, model
     subject= subject_user
     chapter= chapter_user
     movie= theme
-    initial_context= knowledge_llm_calling({'user_query': "Explain in detail, what is {chapter}? ", 'subject': subject, 'chapter': chapter})
+    vectorstore, model= model_embeddings_vectordatabase(pdf= chapter_pdf_mapping[chapter_user], key= os.getenv("OPENAI_API_KEY"))
+    print("Vector Store Created")
+    initial_context= RAG_inference(question= f"In detail explain the idea of {chapter}?", vectorstore= vectorstore, model= model,key= os.getenv("OPENAI_API_KEY"))
+    #initial_context= knowledge_llm_calling({'user_query': "Explain in detail, what is {chapter}? ", 'subject': subject, 'chapter': chapter})
     prompt= ChatPromptTemplate.from_messages([
     ("user", 
         f"""
@@ -53,8 +62,9 @@ def initial_user_input(st_name, subject_user, chapter_user, theme):
     Context: {initial_context}
 
     Your teaching style:
-    * Teach concepts by narrating a story happening in the Harry Potter universe using characters from the movie.
-    * Use Dumbledore's slang and narrate the story from Dumbledore's POV.
+    * Teach concepts by narrating a story happening in the {movie} universe using characters from the movie.
+    * Fore every new question or new concept you teach, try to continue the same story.
+    * Use {movie_mapping[movie]}'s slang and narrate the story from {movie_mapping[movie]}'s POV.
     * Treat me as a 10 year old kid
     * Narrate a story and ask questions in between to guide me in the right path to learn the concepts. Occasionally, pause and conduct easy quiz to make sure I've understood the concepts correctly and  re-explain using if I'm wrong.
     * After asking a question, wait for my response and ONLY PROCEED AFTER GETTING THE RESPONSE.
@@ -67,12 +77,11 @@ def initial_user_input(st_name, subject_user, chapter_user, theme):
     trasncript= story_llm_response.content
     print("trasncript:", trasncript)
     #audio_path= text_to_speech(trasncript)
-    print("chat_history", chat_history)
     #print("audio_path:", audio_path)
     
    
+#initial_user_input("Niranjan", "Physics", "Newton's Laws of Motion", "Harry Potter")
 
-initial_user_input("Niranjan", "Physics", "Newton's Law of Motion", "Harry Potter")
 
 # For reply with 
 story_mode1= ChatOpenAI(#model= ,
@@ -82,7 +91,7 @@ story_mode1= ChatOpenAI(#model= ,
     ).bind_tools(tools= [knowledge_llm_calling])
 
 prompt1= ChatPromptTemplate.from_messages([
-    ("system", "If the user's input is a response to the your previous question in the mentioned chat history, continue the story. If the user has asked a new question from the Newton's Law of Function, ONLY THEN call the knowledge_llm_calling function. If the user's response is irrelevant to the subject and previous conversation, remind to get back to the topic and gently continue"),
+    ("system", "If the user's input is a response to the your previous question in the mentioned chat history, continue the story. If the user has asked a new question from the {chapter}, ONLY THEN call the knowledge_llm_calling function. If the user's response is irrelevant to the subject and previous conversation, remind to get back to the topic and gently continue"),
     ("user", "Chat History is: {chat_history} User's input is:{user_input}")    
 ])
 
@@ -95,17 +104,16 @@ story_mode2= ChatOpenAI(#model= ,
     )
 
 prompt2= ChatPromptTemplate.from_messages([
-    ("system", "You have been teaching the user in Dumbledoor's slang and the user has asked you the below provided question. See if the below provided context can be used to answer the question. If yes, answer it. If NOT, say the teacher will address that question and continue the previous conversation."),
+    ("system", "You have been teaching the user in {movie_mapping[movie]}'s slang and the user has asked you the below provided question. See if the below provided context can be used to answer the question. If yes, answer it. BUT ONLY IF THE CONTEXT IS NOT SUFFICIENT, say the teacher will address that question and continue the previous conversation."),
     ("user", "Chat History is: {chat_history} \n\n User's question is: {user_input} \n\n Context is: {new_content}")    
 ])
 
 chain_story_model2= prompt2 | story_mode2
 
 
-# Function call
-
+# Function call for the subsequent responses
 def chat_user_input(user_input):
-    global subject, chapter, movie, initial_context, chat_history
+    global subject, chapter, movie, initial_context, chat_history, vectorstore,chapter_pdf_mapping, model
     # Inference 1
     story_llm_response1 =chain_story_model1.invoke({'user_input':user_input , "chapter":chapter,"subject":subject,"chat_history":chat_history})
     #story_llm_response =chain.invoke({'user_input': "I know this concept, can you teach me what's Newton's Third Law please?", "chapter":chapter,"subject":subject,"chat_history":chat_history })
@@ -117,9 +125,13 @@ def chat_user_input(user_input):
         function_args= json.loads(story_llm_response1.additional_kwargs['tool_calls'][0]['function']['arguments'])
         #print(function_args)
         new_content= knowledge_llm_calling(function_args)
-        story_llm_response2 =chain_story_model2.invoke({'user_input':user_input , 'new_content': new_content, "chapter":chapter,"subject":subject,"chat_history":chat_history })
+        story_llm_response2 =chain_story_model2.invoke({'user_input':user_input , 'new_content': new_content, "chapter":chapter,"subject":subject,"chat_history":chat_history,'movie':movie})
         chat_history += f"\n\n Human:{user_input} \n\nAI: {story_llm_response2.content}"
         trasncript= story_llm_response2.content
+        
+        # Create teacher ticket
+        #if ("teacher" in trasncript):
+            
         #audio_path= text_to_speech(trasncript)
         #print("audio_path:", audio_path)
         print("trasncript:", trasncript)
