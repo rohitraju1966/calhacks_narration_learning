@@ -16,10 +16,14 @@ load_dotenv()
 
 
 movie="Harry Potter"
-chapter= None
-chapter_pdf_mapping= {"Newton's Laws of Motion":r"C:\Users\saaij\OneDrive - UCB-O365\01. Study\04. Hackathon and Competitions\05. UC Berkely Hackathon 06-22-2024\02. Hacking\Final_Repo_2\calhacks_narration_learning\Niranjan Files\pdfs\Newtons_laws_NASA.pdf" }
+subject= None # ["Physics", "civics"]
+chapter= None # ["Newton's Laws of Motion", "Role of Political Parties"]
+chapter_pdf_mapping= {
+"Newton's Laws of Motion":r"C:\Users\saaij\OneDrive - UCB-O365\01. Study\04. Hackathon and Competitions\05. UC Berkely Hackathon 06-22-2024\02. Hacking\Final_Repo_2\calhacks_narration_learning\Niranjan Files\pdfs\Newtons_laws_NASA.pdf" 
+"Role of Political Parties": r"C:\Users\saaij\OneDrive - UCB-O365\01. Study\04. Hackathon and Competitions\05. UC Berkely Hackathon 06-22-2024\02. Hacking\Final_Repo_2\calhacks_narration_learning\Niranjan Files\pdfs\Civics_Role_Of_Political_Parties.pdf"
+} #CHANGED
 initial_context= None
-subject= "Physics"
+
 chat_history= None
 vectorstore= None 
 model= None
@@ -54,7 +58,12 @@ def initial_user_input(st_name, subject_user, chapter_user, theme):
     movie= theme
     vectorstore, model= model_embeddings_vectordatabase(pdf= chapter_pdf_mapping[chapter_user], key= os.getenv("OPENAI_API_KEY"))
     print("Vector Store Created")
-    initial_context= RAG_inference(question= f"In detail explain the idea of {chapter}?", vectorstore= vectorstore, model= model,key= os.getenv("OPENAI_API_KEY"))
+    if(chapter=="Role of Political Parties"):
+        question= f"In detail explain the Role of Political Parties: Power, Reporting, and Influence on Central Government Decisions?"
+    else:
+        question= f"In detail explain the idea of all three Newton's Law of Motion?" #CHANGED
+
+    initial_context= RAG_inference(question=question, vectorstore= vectorstore, model= model,key= os.getenv("OPENAI_API_KEY"))
     #initial_context= knowledge_llm_calling({'user_query': "Explain in detail, what is {chapter}? ", 'subject': subject, 'chapter': chapter})
     prompt= ChatPromptTemplate.from_messages([
     ("user", 
