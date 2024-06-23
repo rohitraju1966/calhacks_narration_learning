@@ -23,6 +23,7 @@ subject= "Physics"
 chat_history= None
 vectorstore= None 
 model= None
+st_name= None
 
 movie_mapping= {"Harry Potter": "Dumbledore"}
 
@@ -34,7 +35,7 @@ class knowledge_llm_func_schema(BaseModel):
 @tool(args_schema=knowledge_llm_func_schema)
 def knowledge_llm_calling(user_query: str) -> str:
     """A function that can only answer questions on Physics subject on the Newton's Law of Motion chapter"""
-    global subject, chapter, movie, initial_context, chat_history, vectorstore,chapter_pdf_mapping, model
+    global subject, chapter, movie, initial_context, chat_history, vectorstore,chapter_pdf_mapping, model, st_name
     context= RAG_inference(question= user_query, vectorstore= vectorstore, model= model)
     return context
 
@@ -46,9 +47,10 @@ story_mode= ChatOpenAI(#model= ,
     )
 
 def initial_user_input(st_name, subject_user, chapter_user, theme):
-    global subject, chapter, movie, initial_context, chat_history, vectorstore,chapter_pdf_mapping, model
+    global subject, chapter, movie, initial_context, chat_history, vectorstore,chapter_pdf_mapping, model, st_name
     subject= subject_user
     chapter= chapter_user
+    st_name= st_name
     movie= theme
     vectorstore, model= model_embeddings_vectordatabase(pdf= chapter_pdf_mapping[chapter_user], key= os.getenv("OPENAI_API_KEY"))
     print("Vector Store Created")
@@ -113,7 +115,7 @@ chain_story_model2= prompt2 | story_mode2
 
 # Function call for the subsequent responses
 def chat_user_input(user_input):
-    global subject, chapter, movie, initial_context, chat_history, vectorstore,chapter_pdf_mapping, model
+    global subject, chapter, movie, initial_context, chat_history, vectorstore,chapter_pdf_mapping, model, st_name
     # Inference 1
     story_llm_response1 =chain_story_model1.invoke({'user_input':user_input , "chapter":chapter,"subject":subject,"chat_history":chat_history})
     #story_llm_response =chain.invoke({'user_input': "I know this concept, can you teach me what's Newton's Third Law please?", "chapter":chapter,"subject":subject,"chat_history":chat_history })
@@ -130,8 +132,27 @@ def chat_user_input(user_input):
         trasncript= story_llm_response2.content
         
         # Create teacher ticket
-        #if ("teacher" in trasncript):
-            
+        if ("teacher" in trasncript):
+            ticket_data= {"STUDENT_NAME": st_name,
+             "TOPIC": subject,
+             "CHAPTER": chapter,
+             "QUESTION":chat_history,
+             "CONVERSATION_HISTORY": chat_history,
+             "STATUS": "Unresolved"
+            }
+
+            # public\teacher_question_ticket.xlsx does not exist, create an excel with ticket_data
+            # Else 
+            ticket_df= pd.read_csv()
+            file_path= r'public\teacher_question_ticket.xlsx'
+            # Add ticket_data as a new row and 
+            if not os.path.exists(file_path):
+                ticket_df = pd.DataFrame([ticket_data])
+                ticket_df.to_excel(file_path, index=False)
+            else:
+                ticket_df = pd.read_excel(file_path)
+                ticket_df = ticket_df.append(ticket_data, ignore_index=True)
+                ticket_df.to_excel(file_path, index=False)            
         #audio_path= text_to_speech(trasncript)
         #print("audio_path:", audio_path)
         print("trasncript:", trasncript)
